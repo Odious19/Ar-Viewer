@@ -64,7 +64,8 @@
                 tempDiv.style.display = 'none';
                 document.body.appendChild(tempDiv);
                 
-                const viewer = $3Dmol.createViewer(tempDiv);
+                // ⚠️ The critical change: use createGLViewer instead of createViewer
+                const viewer = $3Dmol.createGLViewer(tempDiv);
                 
                 viewer.addModel(pdbData, "pdb");
                 viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
