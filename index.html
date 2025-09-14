@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Molecular Viewer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        #viewer_container {
+            position: relative;
+            width: 100%;
+            height: 60vh;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            touch-action: none;
+            background-color: #2d3748;
+        }
+
+        #settingsAndPanelContainer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        
+        .sidebar {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            width: 48px;
+            background-color: #1a202c;
+            transition: opacity 0.3s ease-in-out;
+            padding: 5px;
+            z-index: 950;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .sidebar.open {
+            display: flex;
+        }
+        
+        .sidebar-button {
+            background-color: #4a5568;
+            border-radius: 0.5rem;
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.2s;
+        }
+        
+        .sidebar-button:hover {
+            background-color: #2d3748;
+        }
+        
+        .sidebar-button img {
+            width: 30px;
+            height: 30px;
+        }
+        
+        #settingsGear {
+            position: relative;
+            background-color: #4a5568;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            transition: background-color 0.2s;
+        }
+        
+        #settingsGear:hover {
+            background-color: #2d3748;
+        }
+        
+        #settingsGear img {
+            width: 30px;
+            height: 30px;
+        }
+        
+        .sidebar-button input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-color: transparent;
+            border: none;
+            width: 38px;
+            height: 38px;
+            cursor: pointer;
+            padding: 0;
+        }
+        
+        .sidebar-button input[type="color"]::-webkit-color-swatch {
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        
+        .sidebar-button input[type="color"]::-moz-color-swatch {
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .modal {
+            position: fixed;
+            z-index: 1002;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            display: none;
+        }
+        
+        .modal-content {
+            background-color: #2d3748;
+            margin: 10% auto;
+            padding: 24px;
+            border-radius: 12px;
+            width: 80%;
+            max-width: 500px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        
+        .close-btn:hover,
+        .close-btn:focus {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        #qrcode-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 1rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+        #qrcode-text {
+            color: #2d3748;
+            font-weight: 500;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        #ar-model-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2000;
+            display: none;
+        }
+        model-viewer {
+            width: 100%;
+            height: 100%;
+            --poster-color: transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 sm:p-6 md:p-8 flex flex-col items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8">
+        <div class="flex flex-col sm:flex-row items-center justify-between mb-6">
+            <h1 class="text-3xl font-bold text-center sm:text-left mb-4 sm:mb-0">
+                <span class="text-blue-600">3D</span> Molecular Viewer
+            </h1>
+            <div class="flex space-x-2">
+                <div class="relative inline-block text-left">
+                    <div>
+                        <select id="representationSelect" class="inline-flex justify-center w-full rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">
+                            <option value="cartoon">Cartoon</option>
+                            <option value="stick">Stick</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="ballAndStick">Ball & Stick</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="viewer_container" class="mb-6">
+            <div id="settingsAndPanelContainer">
+                <div id="settingsGear">
+                    <img id="settingsIcon" alt="Settings">
+                </div>
+                <div id="sidebarPanel" class="sidebar">
+                    <div id="resetBtn" class="sidebar-button">
+                        <img id="resetIcon" alt="Reset">
+                    </div>
+                    <div id="rotateBtn" class="sidebar-button">
+                        <img id="rotateIcon" alt="Rotate">
+                    </div>
+                    <div class="sidebar-button">
+                        <input type="color" id="colorPicker" value="#ffffff">
+                    </div>
+                    <div class="sidebar-button">
+                        <input type="color" id="backgroundColorPicker" value="#2d3748">
+                    </div>
+                    <div id="infoBtn" class="sidebar-button">
+                        <img id="infoIcon" alt="Info">
+                    </div>
+                </div>
+            </div>
+            <div id="placeholder-message" class="absolute inset-0 flex items-center justify-center text-gray-500 dark:text-gray-400 text-lg font-medium text-center p-4">
+                Enter a PDB ID above and click "Load" to begin.
+            </div>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-4 items-center mb-6">
+            <div class="relative w-full">
+                <input type="text" id="pdbIdInput" placeholder="e.g., 6Y2E" class="w-full pl-4 pr-12 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+            </div>
+            <button id="loadBtn" class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-colors">Load</button>
+        </div>
+
+        <div id="messageBox" class="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 p-4 rounded-lg text-sm text-center font-medium transition-opacity duration-300 ease-in-out hidden">
+            </div>
+
+        <div class="flex justify-center mt-6">
+            <button id="arBtn" class="hidden px-6 py-2 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 transition-colors">View in AR</button>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2 class="text-xl font-bold mb-4">Model Information</h2>
+            <div id="infoContent">
+                <p>Loading...</p>
+            </div>
+            <div id="qrcode-container-modal" class="mt-4"></div>
+        </div>
+    </div>
+
+    <div id="ar-model-container"></div>
+
+    <script src="https://3Dmol.org/build/3Dmol.js"></script>
+    <script src="https://3Dmol.org/build/3Dmol.gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+        window.onload = () => {
+            let viewer = null;
+            let model = null;
+            let isRotating = false;
+            let currentPdbId = null;
+
+            // !! IMPORTANT !!
+            // REPLACE THIS URL WITH THE PUBLIC URL OF YOUR ar_viewer.html FILE
+            const arViewerUrl = "https://your-domain.com/ar_viewer.html";
+
+            const iconUrls = {
+                settings: "https://static.wixstatic.com/media/d1172c_b734da885d1d456394f528356ecbc0dd~mv2.png",
+                reset: "https://static.wixstatic.com/media/d1172c_3c239fd4778d45ceb0f4fd9c0cc2028f~mv2.png",
+                rotate: "https://static.wixstatic.com/media/d1172c_49ab959a9ce24e1e809433c5b2595e06~mv2.png",
+                info: "https://static.wixstatic.com/media/d1172c_355ef33c71e848b8b60c7dcff905cbbd~mv2.png"
+            };
+
+            document.getElementById('settingsIcon').src = iconUrls.settings;
+            document.getElementById('resetIcon').src = iconUrls.reset;
+            document.getElementById('rotateIcon').src = iconUrls.rotate;
+            document.getElementById('infoIcon').src = iconUrls.info;
+
+            const loadBtn = document.getElementById('loadBtn');
+            const pdbIdInput = document.getElementById('pdbIdInput');
+            const messageBox = document.getElementById('messageBox');
+            const arBtn = document.getElementById('arBtn');
+            const viewerContainer = document.getElementById('viewer_container');
+            const representationSelect = document.getElementById('representationSelect');
+            const settingsGear = document.getElementById('settingsGear');
+            const sidebarPanel = document.getElementById('sidebarPanel');
+            const resetBtn = document.getElementById('resetBtn');
+            const rotateBtn = document.getElementById('rotateBtn');
+            const colorPicker = document.getElementById('colorPicker');
+            const backgroundColorPicker = document.getElementById('backgroundColorPicker');
+            const infoBtn = document.getElementById('infoBtn');
+            const infoModal = document.getElementById('infoModal');
+            const closeBtn = document.querySelector('.close-btn');
+            const arModelContainer = document.getElementById('ar-model-container');
+
+            settingsGear.addEventListener('click', () => {
+                sidebarPanel.classList.toggle('open');
+            });
+            
+            closeBtn.addEventListener('click', () => {
+                infoModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (event.target == infoModal) {
+                    infoModal.style.display = 'none';
+                }
+            });
+            
+            function initializeViewer() {
+                viewer = $3Dmol.createViewer('viewer_container');
+                viewer.setBackgroundColor(0x2d3748);
+                viewer.zoom(0.8, 1000);
+            }
+
+            initializeViewer();
+
+            function showMessage(text) {
+                messageBox.textContent = text;
+                messageBox.classList.remove('hidden');
+            }
+
+            loadBtn.addEventListener('click', async () => {
+                const pdbId = pdbIdInput.value.toUpperCase().trim();
+                if (!pdbId) {
+                    showMessage("Please enter a valid PDB ID.");
+                    return;
+                }
+                currentPdbId = pdbId;
+                
+                const placeholder = viewerContainer.querySelector('#placeholder-message');
+                if (placeholder) {
+                    placeholder.classList.add('hidden');
+                }
+
+                viewer.clear();
+                
+                try {
+                    const url = `https://files.rcsb.org/download/${pdbId}.pdb`;
+                    const response = await fetch(url);
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to load PDB ID. Status: ${response.status}`);
+                    }
+
+                    const pdbData = await response.text();
+                    
+                    model = viewer.addModel(pdbData, "pdb");
+                    
+                    changeRepresentation(representationSelect.value);
+
+                    viewer.zoomTo();
+                    viewer.render();
+                    showMessage(`Successfully loaded ${pdbId}.`);
+                    
+                    // Show AR button only after successful model load
+                    arBtn.classList.remove('hidden');
+
+                } catch (error) {
+                    showMessage(`Error: ${error.message}`);
+                    console.error("Error loading PDB:", error);
+                }
+            });
+            
+            function changeRepresentation(style) {
+                if (!model) {
+                    showMessage("Please load a protein first.");
+                    return;
+                }
+                viewer.setStyle({}, {}); 
+                if (style === 'cartoon') {
+                    viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+                } else if (style === 'stick') {
+                    viewer.setStyle({}, { stick: { colorscheme: 'byelement' } });
+                } else if (style === 'sphere') {
+                    viewer.setStyle({}, { sphere: { colorscheme: 'byelement' } });
+                } else if (style === 'ballAndStick') {
+                    viewer.setStyle({}, { stick: { radius: 0.2, colorscheme: 'byelement' }, sphere: { scale: 0.3, colorscheme: 'byelement' } });
+                }
+                viewer.render();
+            }
+            
+            representationSelect.addEventListener('change', (event) => {
+                changeRepresentation(event.target.value);
+            });
+
+            arBtn.addEventListener('click', () => {
+                if (!currentPdbId) {
+                    showMessage("Please load a protein first to view it in AR.");
+                    return;
+                }
+
+                infoModal.style.display = 'block';
+                const infoContent = document.getElementById('infoContent');
+                const qrCodeContainer = document.getElementById('qrcode-container-modal');
+                
+                infoContent.innerHTML = `<h2 class="text-xl font-bold mb-4">View in AR</h2><p>Scan the QR code below on your mobile device to view the model in Augmented Reality.</p>`;
+                qrCodeContainer.innerHTML = '<span id="qrcode-text">Scan to view in AR</span>';
+                
+                const qrCodeDiv = document.createElement('div');
+                qrCodeContainer.appendChild(qrCodeDiv);
+
+                // Construct the full URL with the PDB ID
+                const arFullUrl = `${arViewerUrl}?id=${currentPdbId}`;
+
+                new QRCode(qrCodeDiv, {
+                    text: arFullUrl,
+                    width: 256,
+                    height: 256,
+                    colorDark : "#2d3748",
+                    colorLight : "#FFFFFF",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            });
+
+
+            resetBtn.addEventListener('click', () => {
+                if (!viewer || !model) {
+                    showMessage("No model loaded to reset.");
+                    return;
+                }
+                viewer.zoomTo();
+                viewer.render();
+                showMessage("View has been reset.");
+            });
+
+            rotateBtn.addEventListener('click', () => {
+                if (!viewer || !model) {
+                    showMessage("Please load a protein first to enable rotation.");
+                    return;
+                }
+                isRotating = !isRotating;
+                const message = isRotating ? "Automatic rotation turned ON." : "Automatic rotation turned OFF.";
+                showMessage(message);
+            });
+
+            colorPicker.addEventListener('input', (event) => {
+                const hexColor = event.target.value;
+                if (!model) {
+                    showMessage("Please load a protein first to change its color.");
+                    return;
+                }
+                
+                const currentRepresentation = representationSelect.value;
+                viewer.setStyle({}, { [currentRepresentation]: { color: hexColor } });
+                viewer.render();
+            });
+
+            backgroundColorPicker.addEventListener('input', (event) => {
+                const hexColor = event.target.value;
+                const intColor = parseInt(hexColor.slice(1), 16);
+                viewer.setBackgroundColor(intColor);
+                viewer.render();
+                showMessage("Background color changed.");
+            });
+            
+            infoBtn.addEventListener('click', async () => {
+                if (!currentPdbId) {
+                    showMessage("Please load a protein first to see its info.");
+                    return;
+                }
+                
+                infoModal.style.display = 'block';
+                const infoContent = document.getElementById('infoContent');
+                infoContent.innerHTML = "<p>Fetching data...</p>";
+                const qrCodeContainer = document.getElementById('qrcode-container-modal');
+                qrCodeContainer.innerHTML = '';
+
+                try {
+                    const apiUrl = `https://data.rcsb.org/rest/v1/core/entry/${currentPdbId}`;
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+                        throw new Error("Could not fetch information for this PDB ID.");
+                    }
+
+                    const data = await response.json();
+                    
+                    const title = data.struct?.title || "N/A";
+                    const organism = data.entity?.[0]?.rcsb_entity_source_organism?.[0]?.scientific_name || "N/A";
+                    const method = data.rcsb_accession_info?.experimental_method || "N/A";
+                    const publicationYear = data.rcsb_accession_info?.deposit_date?.split('-')[0] || "N/A";
+
+                    infoContent.innerHTML = `
+                        <h3 class="font-semibold text-lg mb-2">PDB ID: ${currentPdbId}</h3>
+                        <p><strong>Title:</strong> ${title}</p>
+                        <p><strong>Source Organism:</strong> ${organism}</p>
+                        <p><strong>Experimental Method:</strong> ${method}</p>
+                        <p><strong>Publication Year:</strong> ${publicationYear}</p>
+                        <p class="mt-4"><a href="https://www.rcsb.org/structure/${currentPdbId}" target="_blank" class="text-blue-400 hover:text-blue-300 underline">View on PDB Database</a></p>
+                    `;
+                    
+                    qrCodeContainer.innerHTML = '<span id="qrcode-text">Scan to view on the PDB website</span>';
+                    const qrCodeDiv = document.createElement('div');
+                    qrCodeContainer.appendChild(qrCodeDiv);
+
+                    new QRCode(qrCodeDiv, {
+                        text: `https://www.rcsb.org/structure/${currentPdbId}`,
+                        width: 128,
+                        height: 128,
+                        colorDark : "#2d3748",
+                        colorLight : "#FFFFFF",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+
+                } catch (error) {
+                    console.error("Error fetching PDB info:", error);
+                    infoContent.innerHTML = `<p class="text-red-400">Error fetching info: ${error.message}</p>`;
+                }
+            });
+
+            function animate() {
+                if (viewer) {
+                    if (isRotating) {
+                        viewer.rotate(2, 0);
+                    }
+                    viewer.render();
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        };
+    </script>
+</body>
+</html>
