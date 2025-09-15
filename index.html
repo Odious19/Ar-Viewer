@@ -64,11 +64,12 @@
                 tempDiv.style.display = 'none';
                 document.body.appendChild(tempDiv);
                 
-                // ⚠️ The critical change: use createGLViewer instead of createViewer
+                // Use the correct GLViewer
                 const viewer = $3Dmol.createGLViewer(tempDiv);
                 
                 viewer.addModel(pdbData, "pdb");
-                viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+                // ⚠️ The fix for the gap: use 'trace' style
+                viewer.setStyle({}, { trace: { color: 'spectrum' } });
                 viewer.zoomTo();
                 
                 // Get the GLTF data from the viewer
