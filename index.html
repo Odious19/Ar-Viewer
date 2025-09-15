@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR Molecular Viewer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    
     <script src="https://3Dmol.org/build/3Dmol.js"></script>
+    <script src="https://3Dmol.org/build/3Dmol.gl.js"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -32,7 +33,6 @@
         #ar-viewer {
             width: 100%;
             height: 100%;
-            display: none;
         }
 
         model-viewer {
@@ -65,41 +65,57 @@
     <div id="error-message"></div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const params = new URLSearchParams(window.location.search);
             const pdbId = params.get('id');
             const errorMessageDiv = document.getElementById('error-message');
             const arViewerDiv = document.getElementById('ar-viewer');
             const modelViewer = document.getElementById('molecule-viewer');
 
-            if (pdbId) {
-                const url = `https://files.rcsb.org/download/${pdbId}.pdb`;
-                errorMessageDiv.textContent = 'Loading model...';
-
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Failed to load PDB ID: ${pdbId}`);
-                        }
-                        return response.text();
-                    })
-                    .then(pdbData => {
-                        const blob = new Blob([pdbData], { type: 'text/plain' });
-                        const blobUrl = URL.createObjectURL(blob);
-                        
-                        modelViewer.setAttribute('src', blobUrl);
-                        modelViewer.setAttribute('ios-src', blobUrl);
-                        modelViewer.setAttribute('ar-modes', 'webxr quick-look');
-                        
-                        errorMessageDiv.style.display = 'none';
-                        arViewerDiv.style.display = 'block';
-                    })
-                    .catch(error => {
-                        console.error('Error fetching PDB data:', error);
-                        errorMessageDiv.textContent = `Error: ${error.message}`;
-                    });
-            } else {
+            if (!pdbId) {
                 errorMessageDiv.textContent = 'Error: No PDB ID provided.';
+                return;
+            }
+
+            // Temporarily hide the model viewer and show a loading message
+            arViewerDiv.style.display = 'none';
+            errorMessageDiv.textContent = 'Loading model...';
+
+            try {
+                // Fetch the PDB data from the RCSB website
+                const response = await fetch(`https://files.rcsb.org/download/${pdbId}.pdb`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load PDB ID: ${pdbId}`);
+                }
+                const pdbData = await response.text();
+
+                // Create an in-memory 3Dmol viewer to render the PDB
+                let viewer = $3Dmol.createViewer(document.createElement('div'), { backgroundColor: 0x2d3748 });
+                viewer.addModel(pdbData, 'pdb');
+                viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+                viewer.zoomTo();
+                viewer.render();
+
+                // Export the scene as a GLB file
+                const gltfExporter = new $3Dmol.GLTFExporter();
+                const glbBuffer = gltfExporter.parse(viewer.get</p>;
+                
+                // Create a blob URL from the GLB buffer
+                const glbBlob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+                const glbUrl = URL.createObjectURL(glbBlob);
+
+                // Set the model-viewer source to the generated GLB URL
+                modelViewer.setAttribute('src', glbUrl);
+                modelViewer.setAttribute('ios-src', glbUrl);
+                modelViewer.setAttribute('ar-modes', 'webxr quick-look');
+
+                // Now that the model is loaded, show the viewer and hide the message
+                errorMessageDiv.style.display = 'none';
+                arViewerDiv.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error in AR viewer:', error);
+                errorMessageDiv.textContent = `Error: ${error.message}`;
             }
         });
     </script>
